@@ -1,0 +1,47 @@
+---
+title: "Irrelevant variable effect on linear regression model"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Import Libraries
+
+```{r message=FALSE, libs}
+library(dplyr)
+library(tidyverse)
+library(data.table)
+library(ggplot2)
+library(raster)
+```
+
+# Define data generating process
+
+```{r}
+set.seed(1)
+mean_vector <- c(0.5, 1, 5, 10)
+sd_vector <- c(0.1, 0.5, 1, 2.5, 5, 10)
+
+# irrelevant instrument effect
+df <- data.frame(cat = sample(c(0,1,2,3), size = 10000, replace = TRUE))
+
+# should try experimenting with varying value of category effect
+df$x <- rnorm(10000, mean = 1+(0.5*df$cat), sd = 0.5) # category shifts the mean of x
+df$w <- rnorm(10000, mean = 3, sd = 1) # irrelevant variable
+df$y <- 0.5*df$x + rnorm(10000, mean = 0, sd = 1) # add white noise
+```
+
+# Fit linear regression models
+
+```{r}
+model_res1 <- lm(y ~ x + cat, data = df)
+summary(model_res1)
+
+model_res2 <- lm(y ~ x, data = df)
+summary(model_res2)
+
+model_res3 <- lm(y ~ x + cat + w, data = df)
+summary(model_res3)
+```
+
+`cat` variable appears significant even though only `x` directly affects `y`.

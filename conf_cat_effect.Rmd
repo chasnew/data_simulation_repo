@@ -55,3 +55,10 @@ df %>% group_by(treatment, gene) %>%
 ```
 
 Simpson's paradox: treatment effect seems positive when the `gene` variable was omitted.
+
+```{r logit model}
+logit <- glm(survive ~ treatment + gene, family = "binomial", data = df)
+
+summary(logit)
+```
+
