@@ -15,33 +15,115 @@ library(ggplot2)
 library(raster)
 ```
 
-# Define data generating process
+# Sample simulation
 
 ```{r}
-set.seed(1)
-mean_vector <- c(0.5, 1, 5, 10)
-sd_vector <- c(0.1, 0.5, 1, 2.5, 5, 10)
+rep_num <- 10000
 
-# irrelevant instrument effect
-df <- data.frame(cat = sample(c(0,1,2,3), size = 10000, replace = TRUE))
+biased_x <- rep(0, rep_num)
+unbiased_x <- rep(0, rep_num)
 
-# should try experimenting with varying value of category effect
-df$x <- rnorm(10000, mean = 1+(0.5*df$cat), sd = 0.5) # category shifts the mean of x
-df$w <- rnorm(10000, mean = 3, sd = 1) # irrelevant variable
-df$y <- 0.5*df$x + rnorm(10000, mean = 0, sd = 1) # add white noise
+for (i in 1:10000) {
+        
+  # `cat` = unnecessary instrument effect
+  df <- data.frame(cat = sample(c(0,1,2,3), size = 10000, replace = TRUE))
+  
+  # category shifts the mean of x
+  df$x <- rnorm(10000, mean = 1+(0.5*df$cat), sd = 2.5)
+  df$y <- 0.5*df$x + rnorm(10000, mean = 0, sd = 1) # add white noise
+  
+  model_res1 <- lm(y ~ x + cat, data = df)
+  model_res2 <- lm(y ~ x, data = df)
+  
+  biased_x[i] <- model_res1$coefficients[["x"]]
+  unbiased_x[i] <- model_res2$coefficients[["x"]]
+  
+}
+
+result_df <- data.frame(unbiased_x, biased_x) %>%
+  gather(est_type, x_val)
+
+ggplot(data = result_df, aes(x_val, color = est_type)) +
+  geom_histogram(bins = 100, fill = "white", alpha = 0.5, position = "identity")
 ```
 
-# Fit linear regression models
+Estimated `x` has bigger standard errors when `cat` is incorporated into the model (lower power).
+
+# Experiment with combinations of parameters
 
 ```{r}
-model_res1 <- lm(y ~ x + cat, data = df)
-summary(model_res1)
+x_means <- c(0.1, 0.5, 1, 5)
+noise_sds <- c(0.1, 0.5, 1, 2.5)
+cat_effects <- c(0.5, 2.5)
+sample_size <- 5000
+rep_num <- 5000
 
-model_res2 <- lm(y ~ x, data = df)
-summary(model_res2)
+result_length <- length(x_means)*length(noise_sds)*length(cat_effects)
+mean_col <- rep(0, result_length)
+noise_col <- rep(0, result_length)
+catfx_col <- rep(0, result_length)
 
-model_res3 <- lm(y ~ x + cat + w, data = df)
-summary(model_res3)
+loop_count <- 1
+
+ubsmean_results <- rep(0, result_length)
+bsmean_results <- rep(0, result_length)
+ubsse_results <- rep(0, result_length)
+bsse_results <- rep(0, result_length)
+
+for (x_mean in x_means) {
+  for (noise_sd in noise_sds) {
+    for (cat_eff in cat_effects) {
+      
+      mean_col[loop_count] <- x_mean
+      noise_col[loop_count] <- noise_sd
+      catfx_col[loop_count] <- cat_eff
+      
+      print(paste("x mean =", x_mean, ", noise sd =", noise_sd, ", cat effect =", cat_eff))
+      
+      biased_x <- rep(0, rep_num)
+      unbiased_x <- rep(0, rep_num)
+      
+      for (i in 1:rep_num) {
+        
+        # irrelevant instrument effect
+        df <- data.frame(cat = sample(c(0,1,2,3), size = sample_size, replace = TRUE))
+        
+        # category shifts the mean of x
+        df$x <- rnorm(sample_size, mean = x_mean+(cat_eff*df$cat), sd = 2.5)
+        df$y <- 0.5*df$x + rnorm(sample_size, mean = 0, sd = noise_sd) # add white noise
+        
+        model_res1 <- lm(y ~ x + cat, data = df)
+        model_res2 <- lm(y ~ x, data = df)
+        
+        biased_x[i] <- model_res1$coefficients[["x"]]
+        unbiased_x[i] <- model_res2$coefficients[["x"]]
+        
+      }
+      
+      ubsmean_results[loop_count] <- mean(unbiased_x)
+      bsmean_results[loop_count] <- mean(biased_x)
+      ubsse_results[loop_count] <- sd(unbiased_x)
+      bsse_results[loop_count] <- sd(biased_x)
+      
+      loop_count <- loop_count+1
+      
+    }
+  }
+}
+
+result_df <- data.frame(mean_col, noise_col, catfx_col, ubsmean_results,
+                        bsmean_results, ubsse_results, bsse_results)
 ```
 
-`cat` variable appears significant even though only `x` directly affects `y`.
+```{r}
+result_df <- result_df %>%
+  mutate(bias_ratio = bsse_results/ubsse_results)
+
+result_df
+
+result_df %>%
+  group_by(catfx_col) %>% 
+  summarise(biasr_mean = mean(bias_ratio))
+```
+
+The bigger the effect of `cat` variable, the lower the power of the analysis.
