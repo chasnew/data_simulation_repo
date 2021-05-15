@@ -15,42 +15,46 @@ library(lme4)
 library(lmerTest)
 ```
 
-# Additional variation
+# Subject-wise variation with t-test
 
 ```{r}
 set.seed(8376)
 
-level.num <- 50
-sublevels <- 1:level.num
+subject.num <- 100 # number of units/subjects
 
-study.n <- 100
+study.n <- 100 # number of replicated studies
 
 confint.results <- data.frame(study.id = 1:study.n)
 lower.results <- rep(0, study.n)
 upper.results <- rep(0, study.n)
 estimates <- rep(0, study.n)
 
-n.vector <- c(1000, 2500, 5000)
-for (n in n.vector) {
+wihtin.vector <- c(20, 50, 100) # within sample size
+for (n in wihtin.vector) {
 
   for (i in 1:study.n) {
-    subintercepts <- runif(level.num, 5, 15)
-    subslopes <- rnorm(level.num, mean = 0, sd = 5)
+    subj.intercepts <- runif(subject.num, 5, 15)
+    subj.slopes <- rnorm(subject.num, mean = 0, sd = 5)
     
-    sl <- sample(sublevels, size = n, replace = TRUE)
-    group <- sample(c(0,1), size = n, replace = TRUE)
-    y <- sapply(1:n, function(i) {
-      return(subslopes[sl[i]]*group[i] + subintercepts[sl[i]])
-    }) + rnorm(n, mean = 0, sd = 1)
+    y <- c()
+    treat.vector <- c()
+    for (j in 1:subject.num) {
+      treat <- sample(c(0,1), size = n, replace = TRUE) # treatment assignment
+      y.tmp <- subj.slopes[j]*treat + subj.intercepts[j] + rnorm(n, mean = 0, sd = 1)
+      
+      treat.vector <- c(treat.vector, treat)
+      y <- c(y, y.tmp)
+    }
+    subj.id <- rep(1:subject.num, each = n)
     
-    data <- data.frame(group, sl, y)
+    data <- data.frame(subj_id = subj.id, treat = treat.vector, y = y)
     
     group1 <- data %>%
-      filter(group == 0)
+      filter(treat == 0)
     group2 <- data %>%
-      filter(group == 1)
+      filter(treat == 1)
     
-    result <- t.test(group2$y, group1$y)
+    result <- t.test(group2$y, group1$y) # equivalent of fixed effect OLS
     lower.results[i] <- result$conf.int[1]
     upper.results[i] <- result$conf.int[2]
     estimates[i] <- result$estimate[["mean of x"]] - result$estimate[["mean of y"]]
@@ -69,7 +73,7 @@ for (n in n.vector) {
     geom_point(size = 1) +
     geom_errorbar(aes(xmin=lower, xmax=upper, col=contain_param), width=.1) +
     geom_vline(xintercept = 0, col = "red") +
-    ggtitle(paste0("n = ", n)) +
+    ggtitle(paste0("within sample size = ", n)) +
     theme(axis.title.y=element_blank(),
           axis.text.y=element_blank(),
           axis.ticks.y=element_blank())
@@ -82,8 +86,7 @@ for (n in n.vector) {
 # No slope variance
 
 ```{r}
-level.num <- 50
-sublevels <- 1:level.num
+subject.num <- 100
 
 study.n <- 100
 
@@ -92,24 +95,29 @@ lower.results <- rep(0, study.n)
 upper.results <- rep(0, study.n)
 estimates <- rep(0, study.n)
 
-n <- 2500
+n <- 50 # within sample size
 
 for (i in 1:study.n) {
-  subintercepts <- runif(level.num, 5, 15)
-  subslopes <- rnorm(level.num, mean = 0, sd = 5)
+  subj.intercepts <- runif(subject.num, 5, 15)
+  slope <- 0
   
-  sl <- sample(sublevels, size = n, replace = TRUE)
-  group <- sample(c(0,1), size = n, replace = TRUE)
-  y <- sapply(1:n, function(i) {
-    return(subintercepts[sl[i]])
-  }) + rnorm(n, mean = 0, sd = 1)
+  y <- c()
+  treat.vector <- c()
+  for (j in 1:subject.num) {
+    treat <- sample(c(0,1), size = n, replace = TRUE) # treatment assignment
+    y.tmp <- treat*slope + subj.intercepts[j] + rnorm(n, mean = 0, sd = 1)
+    
+    treat.vector <- c(treat.vector, treat)
+    y <- c(y, y.tmp)
+  }
+  subj.id <- rep(1:subject.num, each = n)
   
-  data <- data.frame(group, sl, y)
+  data <- data.frame(subj_id = subj.id, treat = treat.vector, y = y)
   
   group1 <- data %>%
-    filter(group == 0)
+    filter(treat == 0)
   group2 <- data %>%
-    filter(group == 1)
+    filter(treat == 1)
   
   result <- t.test(group2$y, group1$y)
   lower.results[i] <- result$conf.int[1]
@@ -130,7 +138,7 @@ g <- confint.results %>%
   geom_point(size = 1) +
   geom_errorbar(aes(xmin=lower, xmax=upper, col=contain_param), width=.1) +
   geom_vline(xintercept = 0, col = "red") +
-  ggtitle(paste0("n = ", n)) +
+  ggtitle(paste0("within sample size = ", n)) +
   theme(axis.title.y=element_blank(),
         axis.text.y=element_blank(),
         axis.ticks.y=element_blank())
@@ -142,8 +150,7 @@ print(g)
 # Mixed effect model
 
 ```{r}
-level.num <- 50
-sublevels <- 1:level.num
+subject.num <- 100
 
 study.n <- 100
 
@@ -152,21 +159,26 @@ lower.results <- rep(0, study.n)
 upper.results <- rep(0, study.n)
 estimates <- rep(0, study.n)
 
-n <- 2500
+n <- 50 # within sample size
 
 for (i in 1:study.n) {
-  subintercepts <- runif(level.num, 5, 15)
-  subslopes <- rnorm(level.num, mean = 0, sd = 5)
+  subj.intercepts <- runif(subject.num, 5, 15)
+  subj.slopes <- rnorm(subject.num, mean = 0, sd = 5)
   
-  sl <- sample(sublevels, size = n, replace = TRUE)
-  group <- sample(c(0,1), size = n, replace = TRUE)
-  y <- sapply(1:n, function(i) {
-    return(subslopes[sl[i]]*group[i] + subintercepts[sl[i]])
-  }) + rnorm(n, mean = 0, sd = 1)
+  y <- c()
+  treat.vector <- c()
+  for (j in 1:subject.num) {
+    treat <- sample(c(0,1), size = n, replace = TRUE) # treatment assignment
+    y.tmp <- subj.slopes[j]*treat + subj.intercepts[j] + rnorm(n, mean = 0, sd = 1)
+    
+    treat.vector <- c(treat.vector, treat)
+    y <- c(y, y.tmp)
+  }
+  subj.id <- rep(1:subject.num, each = n)
   
-  data <- data.frame(group, sl, y)
+  data <- data.frame(subj_id = subj.id, treat = treat.vector, y = y)
   
-  mixed.lmer <- lmer(y ~ group + (1 + group|sl), data = data)
+  mixed.lmer <- lmer(y ~ treat + (1 + treat|subj_id), data = data)
   
   # summary(mixed.lmer)
   # ranef(mixed.lmer)
@@ -190,7 +202,7 @@ g <- confint.results %>%
   geom_point(size = 1) +
   geom_errorbar(aes(xmin=lower, xmax=upper, col=contain_param), width=.1) +
   geom_vline(xintercept = 0, col = "red") +
-  ggtitle(paste0("n = ", n)) +
+  ggtitle(paste0("within sample size = ", n)) +
   theme(axis.title.y=element_blank(),
         axis.text.y=element_blank(),
         axis.ticks.y=element_blank())
