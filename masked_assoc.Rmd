@@ -1,0 +1,93 @@
+---
+title: "Masked association"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Import Libraries
+
+```{r message=FALSE, libs}
+library(tidyverse)
+library(raster)
+```
+
+# Unadjusted model
+
+```{r generating data}
+n <- 5000
+
+sd_r <- 2
+sd_eps <- 2
+
+brs <- 0.2
+brt <- -1.8
+bst <- 0.7
+
+r <- rnorm(n, 0, 2)
+s <- 0.2*r + rnorm(n, 0, 2)
+t <- 0.7*s - 1.8*r + rnorm(n, 0, 2)
+
+eps <- s - brs*r
+ept <- t - bst*s - brt*r
+
+data <- data.frame(s,t,r)
+# study.n <- 100
+# 
+# confint.results <- data.frame(study.id = 1:study.n)
+# lower.results <- rep(0, study.n)
+# upper.results <- rep(0, study.n)
+# estimates <- rep(0, study.n)
+# 
+# for (i in 1:study.n) {
+#   n <- 1000
+#   u1 <- runif(n, -2, 2)
+#   w <- -2*u1 + rnorm(n, mean = 0, sd = 1)
+#   r <- 1.2*u1 + rnorm(n, mean = 0, sd = 1)
+#   t <- rnorm(n, mean = 3, sd = 1.5)
+#   group_scores <- 1.5*w + (-0.2)*r + 2*t + rnorm(n, mean = 0, sd = 1)
+#   group_probs <- exp(group_scores)/sum(exp(group_scores))
+#   group1_inds <- sample(1:n, size = n/2, replace = FALSE, prob = group_probs)
+#   group <- rep(0, n)
+#   group[group1_inds] <- 1
+#   
+#   y <- -0.6*w + (-1.5)*r + 3*t + rnorm(n, mean = 0, sd = 1)
+#   data <- data.frame(group, y, t, r, w)
+#   group1 <- data %>%
+#     filter(group == 0)
+#   group2 <- data %>%
+#     filter(group == 1)
+#   
+#   result <- t.test(group2$y, group1$y)
+#   lower.results[i] <- result$conf.int[1]
+#   upper.results[i] <- result$conf.int[2]
+#   estimates[i] <- result$estimate[["mean of x"]] - result$estimate[["mean of y"]]
+# }
+# 
+# confint.results$lower <- lower.results
+# confint.results$upper <- upper.results
+# confint.results$estimate <- estimates
+# 
+# meta_avg_effect <- mean(confint.results$estimate)
+# 
+# ggplot(data = confint.results, aes(x=estimate, y = study.id)) +
+#   geom_point(size = 1) +
+#   geom_errorbar(aes(xmin=lower, xmax=upper), width=.1) +
+#   geom_vline(xintercept = 0, col = "red") +
+#   geom_vline(xintercept = meta_avg_effect, col = "blue")
+```
+
+
+```{r}
+cov(s, t)
+cor(s, t)
+
+var_part <- brs*brt*var(r) + bst*(brs^2)*var(r) + bst*var(eps)
+cov_part <- (2*bst*brs + 1)*cov(r, eps) + brs*cov(r, ept) + cov(eps, ept)
+
+var_part + cov_part
+
+lm.result <- lm(t ~ s, data = data)
+summary(lm.result)
+```
+
